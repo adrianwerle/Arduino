@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <NTPClient.h>
 #include <WiFiUdp.h>
+#include <ModbusMaster.h>
 
 // Detalles de la red Wi-Fi
 const char* ssid = "VPA2";                 // SSID
@@ -31,10 +32,36 @@ const long dataInterval = 10000; // Intervalo de tiempo para el mensaje de datos
 
 String uid;
 
+// Crear una instancia de la clase ModbusMaster
+ModbusMaster node;
+
+// Pin de control del módulo RS485
+#define MAX485_DE 3
+#define MAX485_RE 2
+
+void preTransmission() {
+  digitalWrite(MAX485_DE, HIGH); // Habilitar el modo de transmisión
+  digitalWrite(MAX485_RE, HIGH);
+}
+
+void postTransmission() {
+  digitalWrite(MAX485_DE, LOW); // Habilitar el modo de recepción
+  digitalWrite(MAX485_RE, LOW);
+}
+
 void setup() {
   Serial.begin(9600);
 
   connectToWiFi();
+
+  Serial1.begin(9600);   // Comunicación RS485
+  pinMode(MAX485_DE, OUTPUT);
+  pinMode(MAX485_RE, OUTPUT);
+
+  // Configura el Modbus
+  node.begin(1, Serial1); // 1 es la dirección del esclavo, ajustar según sea necesario
+  node.preTransmission(preTransmission);
+  node.postTransmission(postTransmission);
   
   // Configura el servidor MQTT
   mqttClient.setServer(mqttServer, mqttPort);
@@ -53,6 +80,7 @@ void setup() {
     uid += octet; // Añade el octeto formateado a uid
   }
   uid.toUpperCase();
+
 }
 
 void loop() {
@@ -144,6 +172,28 @@ void sendHeartbeat() {
 }
 
 void sendData() {
+
+  uint8_t result;
+  uint16_t data[2];
+
+  // Leer registros de holding (modificar la dirección según donde se encuentre el sensor R444A01)
+  result = node.readHoldingRegisters(0x0000, 2); // dirección 0x0000 es solo un ejemplo
+
+  if (result == node.ku8MBSuccess) {
+    // Convertir los datos
+    float temperature = (data[0] / 10.0); // Ajustar según el formato de datos
+    float humidity = (data[1] / 10.0); // Ajustar según el formato de datos
+
+    Serial.print("Temperatura: ");
+    Serial.print(temperature);
+    Serial.print(" °C, Humedad: ");
+    Serial.print(humidity);
+    Serial.println(" %");
+  } else {
+    Serial.print("Error: ");
+    Serial.println(result);
+  }
+
   // Obtiene el timestamp actual
   unsigned long epochTime = timeClient.getEpochTime(); // Obtiene la hora formateada
   // Convierte el epochTime a un String y concatena '000'
