@@ -4,6 +4,8 @@
 #include <NTPClient.h>
 #include <WiFiUdp.h>
 #include <ModbusMaster.h>
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
 
 // Detalles de la red Wi-Fi
 const char* ssid = "VPA2";                 // SSID
@@ -17,6 +19,9 @@ const char* mqttPassword = "clave1";       // Contraseña MQTT
 
 // Nombre de la placa
 const char* nameBoard = "mkr-1";
+
+// Asegúrate de que la dirección I2C es correcta (comúnmente 0x27 o 0x3F)
+LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 // Crear las instancias necesarias
 WiFiClient wifiClient;
@@ -50,7 +55,17 @@ void postTransmission() {
 }
 
 void setup() {
+  Wire.begin();
+
   Serial.begin(9600);
+
+  lcd.init();
+  lcd.backlight(); // Activa la luz de fondo del LCD
+  lcd.clear();
+  lcd.setCursor(0, 0); // Coloca el cursor en la columna 0, fila 0
+  lcd.print("Hola Mundo!");
+  lcd.setCursor(0, 1); // Coloca el cursor en la columna 0, fila 1
+  lcd.print("Arduino MKR WiFi");
 
   connectToWiFi();
 
@@ -84,6 +99,7 @@ void setup() {
 }
 
 void loop() {
+
   // Asegúrate de que el cliente está conectado
   if (!mqttClient.connected()) {
     reconnectMQTT();
@@ -202,12 +218,12 @@ void sendData() {
   char message[150]; // Buffer para el mensaje
 
   // Genera un valor aleatorio entre 0 y 100
-  int randomValue = random(0, 101); // El rango es 0 a 100, el 101 es exclusivo
+  String randomValue = String(random(0, 101)); // El rango es 0 a 100, el 101 es exclusivo
 
   // Crea el mensaje con el timestamp
   snprintf(message, sizeof(message), 
-           "{\"timestamp\": \"%s\", \"value\": \"%d\"}", 
-           timestampString.c_str(), randomValue);
+           "{\"timestamp\": \"%s\", \"value\": \"%s\"}", 
+           timestampString.c_str(), randomValue.c_str());
   
   // Construye el tópico con el UID
   String topic = "DATA/" + uid;
@@ -218,4 +234,12 @@ void sendData() {
   Serial.print(topic);
   Serial.print(": ");
   Serial.println(message);
+  lcd.clear();
+  lcd.setCursor(0, 0); // Coloca el cursor en la columna 0, fila 0
+  lcd.print("T: ");
+  lcd.print(timestampString.c_str());
+  lcd.setCursor(0, 1); // Coloca el cursor en la columna 0, fila 1
+  lcd.print("Value: ");
+  lcd.print(randomValue.c_str());
+
 }
